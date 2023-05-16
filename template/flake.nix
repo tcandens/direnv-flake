@@ -11,7 +11,7 @@
       devShell = buildEnv {
         name = "devshell";
         paths = [
-# Your dependencies here
+# Your dependencies here {{NAME}}
         ];
       };
     }

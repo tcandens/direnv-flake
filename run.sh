@@ -1,35 +1,52 @@
 #!/bin/bash
 
-# Directory where the script is run from
-current_directory=$(dirname "$0")
+# Set default output directory relative to the current working directory
+default_output_dir="$(pwd)/dist"
 
-# Directory where the template files are located
-template_directory="/template"
+# Parse command-line options
+while getopts ":o:e:" opt; do
+  case $opt in
+    o)
+      output_dir=$OPTARG
+      ;;
+    e)
+      variable=${OPTARG%=*}
+      value=${OPTARG#*=}
+      declare -A variables
+      variables["$variable"]="$value"
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
 
-# Function for variable interpolation
-interpolate_variables() {
-    local content="$1"
-    while [[ $content =~ (\$\{([a-zA-Z_][a-zA-Z_0-9]*)\}) ]]; do
-        variable_name="${BASH_REMATCH[2]}"
-        variable_value="${!variable_name}"
-        content="${content//${BASH_REMATCH[1]}/${variable_value}}"
-    done
-    echo "$content"
-}
+# Use default output directory if not specified
+if [ -z "$output_dir" ]; then
+  output_dir=$default_output_dir
+fi
 
-# Copy files from template directory to current directory
-copy_files() {
-    local file
-    for file in "$template_directory"/*; do
-        if [[ -f "$file" ]]; then
-            filename=$(basename "$file")
-            content=$(<"$file")
-            interpolated_content=$(interpolate_variables "$content")
-            echo "$interpolated_content" > "$current_directory/$filename"
-            echo "Copied $filename"
-        fi
-    done
-}
+# Create the output directory if it doesn't exist
+mkdir -p "$output_dir"
 
-# Call the function to copy files
-copy_files
+# Copy files from src directory to output directory, including hidden files
+shopt -s dotglob
+cp -R template/* "$output_dir"
+
+# Perform variable interpolation on the contents of the output directory
+for variable in "${!variables[@]}"; do
+  value="${variables[$variable]}"
+  echo "$variable = $value"
+  for file in "$output_dir"/.* "$output_dir"/*; do
+    if [ -f "$file" ]; then
+      sed -i "s/{{$variable}}/$value/g" "$file"
+    fi
+  done
+done
+
+echo "Files copied from src to $output_dir with variable interpolation."
